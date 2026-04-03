@@ -10,12 +10,13 @@ import { WatchlistButton } from "@/components/movie/WatchlistButton";
 import type { Metadata } from "next";
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
-    const movie = await getMovieDetails(parseInt(params.id));
+    const { id } = await params;
+    const movie = await getMovieDetails(parseInt(id));
     return {
       title: `${movie.title} (${formatYear(movie.release_date)})`,
       description: movie.overview,
@@ -26,7 +27,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function FilmPage({ params }: Props) {
-  const movieId = parseInt(params.id);
+  const { id } = await params;
+  const movieId = parseInt(id);
   if (isNaN(movieId)) notFound();
 
   let movie;
