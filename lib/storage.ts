@@ -1,36 +1,35 @@
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import type { WatchlistItem, TasteProfile } from "@/types";
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+});
 
 // ── Watchlist ──────────────────────────────────────────────
 
 export async function getWatchlist(userId: string): Promise<WatchlistItem[]> {
   try {
-    const data = await kv.get<WatchlistItem[]>(`watchlist:${userId}`);
+    const data = await redis.get<WatchlistItem[]>(`watchlist:${userId}`);
     return data || [];
   } catch {
     return [];
   }
 }
 
-export async function addToWatchlist(
-  userId: string,
-  item: WatchlistItem
-): Promise<void> {
+export async function addToWatchlist(userId: string, item: WatchlistItem): Promise<void> {
   const list = await getWatchlist(userId);
   const exists = list.find((i) => i.movieId === item.movieId);
   if (!exists) {
     list.unshift(item);
-    await kv.set(`watchlist:${userId}`, list);
+    await redis.set(`watchlist:${userId}`, list);
   }
 }
 
-export async function removeFromWatchlist(
-  userId: string,
-  movieId: number
-): Promise<void> {
+export async function removeFromWatchlist(userId: string, movieId: number): Promise<void> {
   const list = await getWatchlist(userId);
   const updated = list.filter((i) => i.movieId !== movieId);
-  await kv.set(`watchlist:${userId}`, updated);
+  await redis.set(`watchlist:${userId}`, updated);
 }
 
 export async function updateWatchlistItem(
@@ -42,13 +41,10 @@ export async function updateWatchlistItem(
   const updated = list.map((item) =>
     item.movieId === movieId ? { ...item, ...updates } : item
   );
-  await kv.set(`watchlist:${userId}`, updated);
+  await redis.set(`watchlist:${userId}`, updated);
 }
 
-export async function isInWatchlist(
-  userId: string,
-  movieId: number
-): Promise<boolean> {
+export async function isInWatchlist(userId: string, movieId: number): Promise<boolean> {
   const list = await getWatchlist(userId);
   return list.some((i) => i.movieId === movieId);
 }
@@ -57,26 +53,17 @@ export async function isInWatchlist(
 
 export async function getTasteProfile(userId: string): Promise<TasteProfile | null> {
   try {
-    return await kv.get<TasteProfile>(`taste:${userId}`);
+    return await redis.get<TasteProfile>(`taste:${userId}`);
   } catch {
     return null;
   }
 }
 
-export async function saveTasteProfile(
-  userId: string,
-  profile: TasteProfile
-): Promise<void> {
-  await kv.set(`taste:${userId}`, {
-    ...profile,
-    lastUpdated: new Date().toISOString(),
-  });
+export async function saveTasteProfile(userId: string, profile: TasteProfile): Promise<void> {
+  await redis.set(`taste:${userId}`, { ...profile, lastUpdated: new Date().toISOString() });
 }
 
-export async function updateTasteProfile(
-  userId: string,
-  updates: Partial<TasteProfile>
-): Promise<void> {
+export async function updateTasteProfile(userId: string, updates: Partial<TasteProfile>): Promise<void> {
   const existing = await getTasteProfile(userId);
   const updated: TasteProfile = {
     favoriteGenres: [],
@@ -88,10 +75,8 @@ export async function updateTasteProfile(
     ...existing,
     ...updates,
   };
-  await kv.set(`taste:${userId}`, updated);
+  await redis.set(`taste:${userId}`, updated);
 }
-
-// ── Rate a Movie (updates taste profile) ──────────────────
 
 export async function rateMovie(
   userId: string,
@@ -101,24 +86,16 @@ export async function rateMovie(
   posterPath: string | null
 ): Promise<void> {
   const profile = await getTasteProfile(userId) || {
-    favoriteGenres: [],
-    favoriteDecades: [],
-    favoriteDirectors: [],
-    moodPreferences: [],
-    ratedMovies: [],
-    lastUpdated: new Date().toISOString(),
+    favoriteGenres: [], favoriteDecades: [], favoriteDirectors: [],
+    moodPreferences: [], ratedMovies: [], lastUpdated: new Date().toISOString(),
   };
-
   const existing = profile.ratedMovies.findIndex((r) => r.movieId === movieId);
   if (existing >= 0) {
     profile.ratedMovies[existing].rating = rating;
   } else {
     profile.ratedMovies.unshift({ movieId, title, rating, posterPath });
   }
-
-  // Keep only last 50 ratings
   profile.ratedMovies = profile.ratedMovies.slice(0, 50);
   profile.lastUpdated = new Date().toISOString();
-
-  await kv.set(`taste:${userId}`, profile);
+  await redis.set(`taste:${userId}`, profile);
 }

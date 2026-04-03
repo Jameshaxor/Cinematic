@@ -5,8 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Bookmark, BookmarkCheck, Star, Play } from "lucide-react";
-import { cn, getRatingColor, truncate } from "@/lib/utils";
-import { formatYear } from "@/lib/tmdb";
+import { cn, getRatingColor, formatYear, truncate } from "@/lib/utils";
 import { posterUrl } from "@/lib/tmdb";
 import type { Movie } from "@/types";
 
